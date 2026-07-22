@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import type { ReactElement } from 'react';
 import { motion } from 'framer-motion';
 import SectionHeading from '@/components/common/SectionHeading';
 import GlassCard from '@/components/ui/GlassCard';
@@ -9,7 +10,7 @@ import { fadeUp, scaleIn, viewportConfig } from '@/utils/animations';
 
 // SVG logos as inline components for key technologies
 const SkillLogo = ({ logo, name }: { logo: string; name: string }) => {
-  const logos: Record<string, JSX.Element> = {
+  const logos: Record<string, ReactElement> = {
     python: (
       <svg viewBox="0 0 48 48" className="w-7 h-7">
         <path fill="#3776AB" d="M24 4C12.95 4 13.5 9.07 13.5 9.07l.01 3.13H24v1H8.9S4 12.66 4 24c0 11.34 5.29 10.93 5.29 10.93H12v-3.25S11.81 26 17.14 26H30.5s4.86.08 4.86-4.86V13.36S36.16 4 24 4zM17.56 11a1.85 1.85 0 1 1 0 3.7 1.85 1.85 0 0 1 0-3.7z"/>
