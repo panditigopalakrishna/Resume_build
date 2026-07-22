@@ -1,146 +1,136 @@
 'use client';
 
-import { useRef, useMemo } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { Sphere, MeshDistortMaterial, Float, Stars, Trail } from '@react-three/drei';
-import * as THREE from 'three';
-import { useMousePosition } from '@/hooks/useAnimations';
+import { useEffect, useRef } from 'react';
+import { motion } from 'framer-motion';
 
-function ParticleField() {
-  const meshRef = useRef<THREE.Points>(null);
-
-  const [positions, colors] = useMemo(() => {
-    const count = 1200;
-    const pos = new Float32Array(count * 3);
-    const col = new Float32Array(count * 3);
-    const colorA = new THREE.Color('#7c3aed');
-    const colorB = new THREE.Color('#06b6d4');
-    const colorC = new THREE.Color('#ffffff');
-
-    for (let i = 0; i < count; i++) {
-      pos[i * 3] = (Math.random() - 0.5) * 20;
-      pos[i * 3 + 1] = (Math.random() - 0.5) * 20;
-      pos[i * 3 + 2] = (Math.random() - 0.5) * 20;
-
-      const t = Math.random();
-      const c = t < 0.4 ? colorA : t < 0.7 ? colorB : colorC;
-      col[i * 3] = c.r;
-      col[i * 3 + 1] = c.g;
-      col[i * 3 + 2] = c.b;
-    }
-    return [pos, col];
-  }, []);
-
-  useFrame((_, delta) => {
-    if (meshRef.current) {
-      meshRef.current.rotation.x += delta * 0.02;
-      meshRef.current.rotation.y += delta * 0.015;
-    }
-  });
-
-  return (
-    <points ref={meshRef}>
-      <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          array={positions}
-          count={positions.length / 3}
-          itemSize={3}
-        />
-        <bufferAttribute
-          attach="attributes-color"
-          array={colors}
-          count={colors.length / 3}
-          itemSize={3}
-        />
-      </bufferGeometry>
-      <pointsMaterial size={0.025} vertexColors transparent opacity={0.6} sizeAttenuation />
-    </points>
-  );
-}
-
-function AiOrb({ mouse }: { mouse: { x: number; y: number } }) {
-  const meshRef = useRef<THREE.Mesh>(null);
-  const { size } = useThree();
-
-  useFrame((state) => {
-    if (meshRef.current) {
-      const targetX = (mouse.x / size.width - 0.5) * 0.8;
-      const targetY = -(mouse.y / size.height - 0.5) * 0.8;
-      meshRef.current.rotation.x += (targetY - meshRef.current.rotation.x) * 0.05;
-      meshRef.current.rotation.y += (targetX - meshRef.current.rotation.y) * 0.05;
-      meshRef.current.position.x += (targetX * 0.3 - meshRef.current.position.x) * 0.04;
-      meshRef.current.position.y += (targetY * 0.3 - meshRef.current.position.y) * 0.04;
-    }
-  });
-
-  return (
-    <Float speed={1.4} rotationIntensity={0.4} floatIntensity={0.6}>
-      <mesh ref={meshRef}>
-        <Sphere args={[1.2, 64, 64]}>
-          <MeshDistortMaterial
-            color="#7c3aed"
-            attach="material"
-            distort={0.45}
-            speed={2.5}
-            roughness={0}
-            metalness={0.2}
-            transparent
-            opacity={0.85}
-          />
-        </Sphere>
-        {/* Inner glow core */}
-        <Sphere args={[0.7, 32, 32]}>
-          <meshBasicMaterial color="#c084fc" transparent opacity={0.3} />
-        </Sphere>
-      </mesh>
-    </Float>
-  );
-}
-
-function OrbitRing() {
-  const groupRef = useRef<THREE.Group>(null);
-
-  useFrame((_, delta) => {
-    if (groupRef.current) {
-      groupRef.current.rotation.z += delta * 0.3;
-      groupRef.current.rotation.x += delta * 0.1;
-    }
-  });
-
-  const ringGeom = useMemo(() => {
-    return new THREE.TorusGeometry(1.9, 0.01, 8, 100);
-  }, []);
-
-  return (
-    <group ref={groupRef}>
-      <mesh geometry={ringGeom}>
-        <meshBasicMaterial color="#7c3aed" transparent opacity={0.3} />
-      </mesh>
-      <mesh geometry={ringGeom} rotation={[Math.PI / 3, 0, 0]}>
-        <meshBasicMaterial color="#06b6d4" transparent opacity={0.2} />
-      </mesh>
-    </group>
-  );
+interface Particle {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  size: number;
+  opacity: number;
+  color: string;
 }
 
 export default function HeroCanvas() {
-  const mouse = useMousePosition();
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const particles = useRef<Particle[]>([]);
+  const animRef = useRef<number>(0);
+  const mouseRef = useRef({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const resize = () => {
+      canvas.width = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
+    };
+    resize();
+    window.addEventListener('resize', resize);
+
+    const handleMouse = (e: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      mouseRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    };
+    window.addEventListener('mousemove', handleMouse);
+
+    const colors = ['rgba(124,58,237,', 'rgba(6,182,212,', 'rgba(192,132,252,', 'rgba(255,255,255,'];
+    particles.current = Array.from({ length: 120 }, () => ({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      vx: (Math.random() - 0.5) * 0.4,
+      vy: (Math.random() - 0.5) * 0.4,
+      size: Math.random() * 2 + 0.5,
+      opacity: Math.random() * 0.5 + 0.1,
+      color: colors[Math.floor(Math.random() * colors.length)],
+    }));
+
+    const draw = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const mx = mouseRef.current.x;
+      const my = mouseRef.current.y;
+
+      particles.current.forEach((p) => {
+        // Subtle mouse repulsion
+        const dx = p.x - mx;
+        const dy = p.y - my;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 120) {
+          p.vx += (dx / dist) * 0.03;
+          p.vy += (dy / dist) * 0.03;
+        }
+
+        p.vx *= 0.99;
+        p.vy *= 0.99;
+        p.x += p.vx;
+        p.y += p.vy;
+
+        if (p.x < 0) p.x = canvas.width;
+        if (p.x > canvas.width) p.x = 0;
+        if (p.y < 0) p.y = canvas.height;
+        if (p.y > canvas.height) p.y = 0;
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = `${p.color}${p.opacity})`;
+        ctx.fill();
+      });
+
+      // Draw connecting lines between close particles
+      for (let i = 0; i < particles.current.length; i++) {
+        for (let j = i + 1; j < particles.current.length; j++) {
+          const a = particles.current[i];
+          const b = particles.current[j];
+          const dx = a.x - b.x;
+          const dy = a.y - b.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 80) {
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            ctx.lineTo(b.x, b.y);
+            ctx.strokeStyle = `rgba(124,58,237,${0.15 * (1 - dist / 80)})`;
+            ctx.lineWidth = 0.5;
+            ctx.stroke();
+          }
+        }
+      }
+
+      animRef.current = requestAnimationFrame(draw);
+    };
+    draw();
+
+    return () => {
+      cancelAnimationFrame(animRef.current);
+      window.removeEventListener('resize', resize);
+      window.removeEventListener('mousemove', handleMouse);
+    };
+  }, []);
 
   return (
-    <Canvas
-      camera={{ position: [0, 0, 5], fov: 60 }}
-      gl={{ antialias: true, alpha: true }}
-      style={{ position: 'absolute', inset: 0 }}
-      dpr={[1, 2]}
-    >
-      <ambientLight intensity={0.3} />
-      <pointLight position={[5, 5, 5]} color="#7c3aed" intensity={3} />
-      <pointLight position={[-5, -3, -5]} color="#06b6d4" intensity={2} />
-      <Stars radius={80} depth={50} count={2000} factor={2} saturation={0} fade speed={0.5} />
-      <ParticleField />
-      <AiOrb mouse={mouse} />
-      <OrbitRing />
-    </Canvas>
+    <div className="absolute inset-0 overflow-hidden">
+      {/* Canvas particles */}
+      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
+
+      {/* Animated gradient orbs */}
+      <motion.div
+        animate={{ x: [0, 30, 0], y: [0, -20, 0], scale: [1, 1.1, 1] }}
+        transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
+        className="absolute top-1/4 right-1/4 w-96 h-96 bg-purple-600/20 rounded-full blur-3xl pointer-events-none"
+      />
+      <motion.div
+        animate={{ x: [0, -20, 0], y: [0, 30, 0], scale: [1, 1.15, 1] }}
+        transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut', delay: 2 }}
+        className="absolute bottom-1/3 left-1/4 w-80 h-80 bg-cyan-600/15 rounded-full blur-3xl pointer-events-none"
+      />
+      <motion.div
+        animate={{ x: [0, 15, 0], y: [0, 25, 0], scale: [1, 0.9, 1] }}
+        transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
+        className="absolute top-1/2 left-1/2 w-64 h-64 bg-violet-500/10 rounded-full blur-2xl pointer-events-none"
+      />
+    </div>
   );
 }
